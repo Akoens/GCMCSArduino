@@ -13,8 +13,7 @@
 
 char ssid[] = SECRET_SSID;
 char pass[] = SECRET_PASS;
-
-char server[] = "www.nu.nl";  
+char server[] = SECRET_SERVER;  
 
 WiFiSSLClient client;
 
@@ -45,7 +44,7 @@ int ldrValue = 0;
 
 
 //*** DHT SENSOR VARIABLES ***//
-#define DHTPIN 2
+#define DHTPIN 9
 #define DHTTYPE DHT22
 DHT dht(DHTPIN, DHTTYPE);
 
@@ -65,7 +64,7 @@ void setup() {
   while (WiFi.status() == WL_NO_MODULE);
 
   if (WiFi.firmwareVersion() < WIFI_FIRMWARE_LATEST_VERSION) {
-    Serial.println("Firmware upgrade available");
+    Serial.println("Firmware upgrade available!");
   }
 
   int status = WL_IDLE_STATUS;
@@ -79,19 +78,19 @@ void setup() {
   printWiFiStatus();
   
   Serial.println("\nStarting connection to server...");
-  /*
+  
   if (client.connect(server, 443)) {
     Serial.println("connected to server");
-    client.println("GET /search?q=arduino HTTP/1.1");
-    client.println("Host: www.google.com");
+    //client.println("GET /search?q=arduino HTTP/1.1");
+    client.print("Host: ");
+    client.println(SECRET_SERVER);
     client.println("Connection: close");
     client.println();
   }
-  */
 }
 
 void loop() {
-  /*
+  // READ / SEND DATA 
   while (client.available()) {
     char c = client.read();
     Serial.write(c);
@@ -101,10 +100,8 @@ void loop() {
     Serial.println();
     Serial.println("disconnecting from server.");
     client.stop();
-
-    while (true);
   }
-  */
+
 
  //*** LDR SENSOR CODE ***//
   ldrValue = analogRead(LightSensorPin);
@@ -165,5 +162,5 @@ void loop() {
   }
 
   Serial.println();
-  delay(2000); 
+  delay(5000); 
 }
