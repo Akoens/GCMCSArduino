@@ -31,7 +31,7 @@ void printWiFiStatus() {
 #define LightSensorPin A0
 #define MAX_ADC_READING 1023
 #define ADC_REF_VOLTAGE 5
-#define REF_RESISTANCE 16000
+#define REF_RESISTANCE 4700
 #define LUX_CALC_SCALAR 12518931 
 #define LUX_CALC_EXPONENT -1.405
 
