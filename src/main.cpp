@@ -37,6 +37,9 @@ void printWiFiStatus() {
 
 int ldrValue = 0;
 
+#define RED 2
+#define YELLOW 3
+#define GREEN 4
 
 //*** TMP SERNSOR VARIABLES ***//
 #define TMPSensorPin A1
@@ -59,6 +62,10 @@ float calcFahrenheid(float t){
 
 //*** MAIN FUNCTIONS ***//
 void setup() {
+  pinMode(RED, OUTPUT);
+  pinMode(YELLOW, OUTPUT);
+  pinMode(GREEN, OUTPUT);
+
   Serial.begin(9600);
   while (!Serial);
   while (WiFi.status() == WL_NO_MODULE);
@@ -111,6 +118,20 @@ void loop() {
 
   float ldrResistance = ldrVoltage / resistorVoltage * REF_RESISTANCE;
   float ldrLux = LUX_CALC_SCALAR * pow(ldrResistance, LUX_CALC_EXPONENT);
+  
+  digitalWrite(RED, LOW);
+  digitalWrite(YELLOW, LOW);
+  digitalWrite(GREEN, LOW);
+
+  if(ldrValue < 350){
+    digitalWrite(RED, HIGH);
+  }
+  if(350 < ldrValue && ldrValue < 700){
+    digitalWrite(YELLOW, HIGH);
+  }
+  if(ldrValue > 700){
+    digitalWrite(GREEN, HIGH);
+  }
 
   Serial.print("[LDR] Light: ");
   Serial.print((int)ldrLux);
