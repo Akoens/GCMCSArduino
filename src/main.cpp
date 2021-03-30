@@ -4,6 +4,7 @@
 #include <Wire.h>
 #include <SPI.h>
 #include <math.h>
+#include <ArduinoJson.h>
 
 #include <WifiNINA.h>
 #include <Adafruit_Sensor.h>
@@ -11,21 +12,17 @@
 #include <DHT.h>
 #include <DHT_U.h>
 
+//** Global variables **//
+#define UpdateDelay 5000
+
+//*** WiFi / Network Variables ***//
 char ssid[] = SECRET_SSID;
 char pass[] = SECRET_PASS;
-char server[] = SECRET_SERVER;  
+char server[] = SECRET_SERVER;
+int server_port = SECRET_PORT;
+char api_point[] = SECRET_API;
 
 WiFiSSLClient client;
-
-void printWiFiStatus() {
-  IPAddress ip = WiFi.localIP();
-
-  Serial.print("IP Address: ");
-  Serial.println(ip);
-
-  Serial.print("To see this page in action, open a browser to http://");
-  Serial.println(ip);
-}
 
 //*** LDR SENSOR VARIABLES ***//
 #define LightSensorPin A0
@@ -41,10 +38,20 @@ int ldrValue = 0;
 #define YELLOW 3
 #define GREEN 4
 
+// Light sensor LEDs
+// Lowest value || -2147483647-1 || Highest value || 2147483647
+#define RED_MIN_VALUE -2147483647-1
+#define RED_MAX_VALUE 100
+
+#define YELLOW_MIN_VALUE 100
+#define YELLOW_MAX_VALUE 500
+
+#define GREEN_MIN_VALUE 500
+#define GREEN_MAX_VALUE 2147483647
+
 //*** TMP SERNSOR VARIABLES ***//
 #define TMPSensorPin A1
 #define TMPSensorVin 5
-
 
 //*** DHT SENSOR VARIABLES ***//
 #define DHTPIN 9
@@ -58,6 +65,50 @@ float calcKelvin(float t){
 
 float calcFahrenheid(float t){
   return (t * 1.8) + 32;
+}
+
+//*** NETWORK FUNCTION ***//
+void printWiFiStatus() {
+  IPAddress ip = WiFi.localIP();
+
+  Serial.print("IP Address: ");
+  Serial.println(ip);
+}
+
+void sendData(JsonObject data){
+  //Connect to server
+  Serial.println("\nStarting connection to server...");
+  if(client.connect(server, server_port)) {
+    Serial.println("Connected to server");
+  } else {
+    Serial.println("connection failed");
+  }
+
+  //Send HTTP Header
+  client.println("POST " + String(api_point) + " HTTP/1.1");
+  client.print("Host: " + String(server));
+  client.println("Content-Type: application/json" );
+  client.println("Content-Length: " + String(data.size()));
+  client.println("Connection: close");
+  client.println();
+  // End
+
+  //Send HTTP Body
+  client.println(data);
+  //End
+
+  //Wait and read Response
+  while(client.available()) {
+    char c = client.read();
+    Serial.print(c);
+  }
+
+  //Disconnect from server
+  if(!client.connected()) {
+    Serial.println("disconnected");
+    client.stop();
+  }
+
 }
 
 //*** MAIN FUNCTIONS ***//
@@ -83,33 +134,9 @@ void setup() {
   }
 
   printWiFiStatus();
-  
-  Serial.println("\nStarting connection to server...");
-  
-  if (client.connect(server, 443)) {
-    Serial.println("connected to server");
-    //client.println("GET /search?q=arduino HTTP/1.1");
-    client.print("Host: ");
-    client.println(SECRET_SERVER);
-    client.println("Connection: close");
-    client.println();
-  }
 }
 
 void loop() {
-  // READ / SEND DATA 
-  while (client.available()) {
-    char c = client.read();
-    Serial.write(c);
-  }
-
-  if (!client.connected()) {
-    Serial.println();
-    Serial.println("disconnecting from server.");
-    client.stop();
-  }
-
-
  //*** LDR SENSOR CODE ***//
   ldrValue = analogRead(LightSensorPin);
 
@@ -123,13 +150,13 @@ void loop() {
   digitalWrite(YELLOW, LOW);
   digitalWrite(GREEN, LOW);
 
-  if(ldrValue < 350){
+  if(RED_MIN_VALUE < ldrLux && ldrLux < RED_MAX_VALUE){
     digitalWrite(RED, HIGH);
   }
-  if(350 < ldrValue && ldrValue < 700){
+  if(YELLOW_MIN_VALUE < ldrLux && ldrLux < YELLOW_MAX_VALUE){
     digitalWrite(YELLOW, HIGH);
   }
-  if(ldrValue > 700){
+  if(GREEN_MIN_VALUE < ldrLux && ldrLux > GREEN_MAX_VALUE){
     digitalWrite(GREEN, HIGH);
   }
 
@@ -183,5 +210,5 @@ void loop() {
   }
 
   Serial.println();
-  delay(5000); 
+  delay(UpdateDelay); 
 }
