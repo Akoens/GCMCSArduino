@@ -1,4 +1,6 @@
 #include <Arduino.h>
+#include <sensorDataStructs.h>
+#include <utils.h>
 #include <secrets.h>
 
 #include <Wire.h>
@@ -15,6 +17,7 @@
 //** Global variables **//
 #define UpdateDelay 5000
 
+
 //*** WiFi / Network Variables ***//
 char ssid[] = SECRET_SSID;
 char pass[] = SECRET_PASS;
@@ -22,7 +25,9 @@ char server[] = SECRET_SERVER;
 int server_port = SECRET_PORT;
 char api_point[] = SECRET_API;
 
-WiFiSSLClient client;
+// WiFiSSLClient client;
+WiFiClient client;
+
 
 //*** LDR SENSOR VARIABLES ***//
 #define LightSensorPin A0
@@ -32,11 +37,10 @@ WiFiSSLClient client;
 #define LUX_CALC_SCALAR 12518931 
 #define LUX_CALC_EXPONENT -1.405
 
-int ldrValue = 0;
-
 #define RED 2
 #define YELLOW 3
 #define GREEN 4
+
 
 // Light sensor LEDs
 // Lowest value || -2147483647-1 || Highest value || 2147483647
@@ -49,23 +53,17 @@ int ldrValue = 0;
 #define GREEN_MIN_VALUE 500
 #define GREEN_MAX_VALUE 2147483647
 
+
 //*** TMP SERNSOR VARIABLES ***//
 #define TMPSensorPin A1
 #define TMPSensorVin 5
+
 
 //*** DHT SENSOR VARIABLES ***//
 #define DHTPIN 9
 #define DHTTYPE DHT22
 DHT dht(DHTPIN, DHTTYPE);
 
-//*** CONVERSION FUNCTIONS ***//
-float calcKelvin(float t){
-  return t + 273.15;
-}
-
-float calcFahrenheid(float t){
-  return (t * 1.8) + 32;
-}
 
 //*** NETWORK FUNCTION ***//
 void printWiFiStatus() {
@@ -75,40 +73,80 @@ void printWiFiStatus() {
   Serial.println(ip);
 }
 
-void sendData(JsonObject data){
-  //Connect to server
+void sendData(JsonObject jsonData) {
+  // Connect to server
   Serial.println("\nStarting connection to server...");
   if(client.connect(server, server_port)) {
     Serial.println("Connected to server");
   } else {
     Serial.println("connection failed");
+    client.stop();
+    return;
   }
 
-  //Send HTTP Header
-  client.println("POST " + String(api_point) + " HTTP/1.1");
-  client.print("Host: " + String(server));
-  client.println("Content-Type: application/json" );
-  client.println("Content-Length: " + String(data.size()));
-  client.println("Connection: close");
-  client.println();
+  // Send HTTP Header
+  
+  String requestBody;
+  serializeJson(jsonData, requestBody);
+
+  String request = String("POST ") + api_point + " HTTP/1.1 \r\n" +
+                 "Content-Type: application/json\r\n" +
+                 "Content-Length: " + requestBody.length() + "\r\n" +
+                 "Connection: close\r\n" +
+                 "\r\n";
+  client.print(request);
+  client.print(requestBody);
+  Serial.println(requestBody);
+
   // End
 
-  //Send HTTP Body
-  client.println(data);
-  //End
-
-  //Wait and read Response
+  // Wait and read Response
   while(client.available()) {
     char c = client.read();
     Serial.print(c);
   }
 
-  //Disconnect from server
+  // Disconnect from server
   if(!client.connected()) {
-    Serial.println("disconnected");
+    Serial.print("disconnected");
     client.stop();
   }
+}
 
+//*** LDR SENSOR CODE ***//
+ldrDataStruct readLDR() {
+  int ldrValue = analogRead(LightSensorPin);
+
+  float resistorVoltage = (float)ldrValue / MAX_ADC_READING * ADC_REF_VOLTAGE;
+  float ldrVoltage = ADC_REF_VOLTAGE - resistorVoltage;
+
+  float ldrResistance = ldrVoltage / resistorVoltage * REF_RESISTANCE;
+  float ldrLux = LUX_CALC_SCALAR * pow(ldrResistance, LUX_CALC_EXPONENT);
+
+  return ldrDataStruct{ldrLux, ldrValue};
+}
+
+//*** TMP SERNSOR CODE ***//
+tmpDataStruct readTMP() {
+  int tmpValue = analogRead(TMPSensorPin);
+  float tmpVoltage = tmpValue * (TMPSensorVin / 1024.0);
+  float tmpTemperature = (tmpVoltage - 0.5) * 100;
+  
+  return tmpDataStruct{tmpTemperature, tmpValue};
+}
+
+//*** DHT SENSOR CODE ***//
+dhtDataStruct readDHT() {
+  float h = dht.readHumidity();
+  float t = dht.readTemperature();
+
+  // Check if any reads failed.
+  if (isnan(h) || isnan(t)) {
+    return dhtDataStruct{0,0};
+  } 
+  else {
+    return dhtDataStruct{h, t};
+  }
 }
 
 //*** MAIN FUNCTIONS ***//
@@ -134,80 +172,60 @@ void setup() {
   }
 
   printWiFiStatus();
+  Serial.println();
+
+  dht.begin();
 }
 
 void loop() {
- //*** LDR SENSOR CODE ***//
-  ldrValue = analogRead(LightSensorPin);
+  // LDR
+  ldrDataStruct ldrData = readLDR();
+  String ldrString = "[LDR] Light: " + String((int)ldrData.ldrLux) + 
+  " Lux | raw: " + String(ldrData.ldrValue);
+  Serial.println(ldrString);
 
-  float resistorVoltage = (float)ldrValue / MAX_ADC_READING * ADC_REF_VOLTAGE;
-  float ldrVoltage = ADC_REF_VOLTAGE - resistorVoltage;
-
-  float ldrResistance = ldrVoltage / resistorVoltage * REF_RESISTANCE;
-  float ldrLux = LUX_CALC_SCALAR * pow(ldrResistance, LUX_CALC_EXPONENT);
-  
   digitalWrite(RED, LOW);
   digitalWrite(YELLOW, LOW);
   digitalWrite(GREEN, LOW);
 
-  if(RED_MIN_VALUE < ldrLux && ldrLux < RED_MAX_VALUE){
+  if(RED_MIN_VALUE < ldrData.ldrLux && ldrData.ldrLux < RED_MAX_VALUE){
     digitalWrite(RED, HIGH);
   }
-  if(YELLOW_MIN_VALUE < ldrLux && ldrLux < YELLOW_MAX_VALUE){
+  if(YELLOW_MIN_VALUE < ldrData.ldrLux && ldrData.ldrLux < YELLOW_MAX_VALUE){
     digitalWrite(YELLOW, HIGH);
   }
-  if(GREEN_MIN_VALUE < ldrLux && ldrLux > GREEN_MAX_VALUE){
+  if(GREEN_MIN_VALUE < ldrData.ldrLux && ldrData.ldrLux > GREEN_MAX_VALUE){
     digitalWrite(GREEN, HIGH);
   }
 
-  Serial.print("[LDR] Light: ");
-  Serial.print((int)ldrLux);
-  Serial.print(" Lux | raw: ");
-  Serial.println(ldrValue);
+  // TMP
+  tmpDataStruct tmpData = readTMP();
+  String tmpString = "[TMP] Temperature: " + String(tmpData.tmpTemperature) + 
+    "*C / " + String(calcKelvin(tmpData.tmpTemperature)) +
+    "*K / " + String(calcFahrenheid(tmpData.tmpTemperature)) +
+    "*F | Raw: " + String(tmpData.tmpValue);
+  Serial.println(tmpString);
+  
+  // DHT
+  dhtDataStruct dhtData = readDHT();
+  String dhtString = "[DHT] Humidity: " + String(dhtData.h) + 
+  "% | Temperature: " + String(dhtData.t) +
+  "*C / " + String(calcFahrenheid(dhtData.t)) +
+  "*K / " + String(calcKelvin(dhtData.t)) + 
+  "*F | Heat index: " + String(dht.computeHeatIndex(dhtData.t, dhtData.h, false)) +
+  "*C / " + String(dht.computeHeatIndex(calcFahrenheid(dhtData.t), dhtData.h)) + "*F";
 
-  //*** TMP SERNSOR CODE ***//
-  int tmpValue = analogRead(TMPSensorPin);
-  float tmpVoltage = tmpValue * (TMPSensorVin / 1024.0);
-  float tmpTemperature = (tmpVoltage - 0.5) * 100;
+  Serial.println(dhtString);
 
-  Serial.print("[TMP] Temperature: ");
-  Serial.print(tmpTemperature);
-  Serial.print(F("°C / "));
-  Serial.print(calcKelvin(tmpTemperature));
-  Serial.print(F("°K / "));
-  Serial.print(calcFahrenheid(tmpTemperature));
-  Serial.print(F("°F | Raw: "));
-  Serial.println(tmpValue);
+  // Data transmition
+  StaticJsonDocument<250> doc;
+  JsonObject obj = doc.to<JsonObject>();
 
-  //*** DHT SENSOR CODE ***//
-  float h = dht.readHumidity();
-  float t = dht.readTemperature();
+  obj["tmp"] = tmpString;
+  obj["ldr"] = ldrString;
+  obj["dht"] = dhtString;
 
-  // Check if any reads failed.
-  if (isnan(h) || isnan(t)) {
-    Serial.println("Failed to read from DHT sensor!");
-  } 
-  else {
-    float k = calcKelvin(t);
-    float f = calcFahrenheid(t);
-
-    float hic = dht.computeHeatIndex(t, h, false);
-    float hif = dht.computeHeatIndex(f, h);
-
-    Serial.print(F("[DHT] Humidity: "));
-    Serial.print(h);
-    Serial.print(F("% | Temperature: "));
-    Serial.print(t);
-    Serial.print(F("°C / "));
-    Serial.print(k);
-    Serial.print(F("°K / "));
-    Serial.print(f);
-    Serial.print(F("°F | Heat index: "));
-    Serial.print(hic);
-    Serial.print(F("°C / "));
-    Serial.print(hif);
-    Serial.println(F("°F"));
-  }
+  sendData(obj);
 
   Serial.println();
   delay(UpdateDelay); 
