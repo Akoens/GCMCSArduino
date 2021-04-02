@@ -246,7 +246,7 @@ void loop() {
 
 
   // Data transmition
-  StaticJsonDocument<250> doc;
+  StaticJsonDocument<300> doc;
   JsonObject obj = doc.to<JsonObject>();
 
   obj["tmp"] = tmpString;
