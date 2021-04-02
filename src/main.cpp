@@ -51,7 +51,7 @@ WiFiClient client;
 #define YELLOW_MAX_VALUE 500
 
 #define GREEN_MIN_VALUE 500
-#define GREEN_MAX_VALUE 2147483647
+#define GREEN_MAX_VALUE 2147483646
 
 
 //*** TMP SERNSOR VARIABLES ***//
@@ -129,7 +129,7 @@ ldrDataStruct readLDR() {
 //*** TMP SERNSOR CODE ***//
 tmpDataStruct readTMP() {
   int tmpValue = analogRead(TMPSensorPin);
-  float tmpVoltage = tmpValue * (TMPSensorVin / 1024.0);
+  float tmpVoltage = tmpValue * TMPSensorVin / 1024.0;
   float tmpTemperature = (tmpVoltage - 0.5) * 100;
   
   return tmpDataStruct{tmpTemperature, tmpValue};
@@ -194,7 +194,7 @@ void loop() {
   if(YELLOW_MIN_VALUE < ldrData.ldrLux && ldrData.ldrLux < YELLOW_MAX_VALUE){
     digitalWrite(YELLOW, HIGH);
   }
-  if(GREEN_MIN_VALUE < ldrData.ldrLux && ldrData.ldrLux > GREEN_MAX_VALUE){
+  if(GREEN_MIN_VALUE < ldrData.ldrLux && ldrData.ldrLux < GREEN_MAX_VALUE){
     digitalWrite(GREEN, HIGH);
   }
 
