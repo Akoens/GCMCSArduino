@@ -14,6 +14,9 @@
 #include <DHT.h>
 #include <DHT_U.h>
 
+#include <OneWire.h>
+#include <DallasTemperature.h>
+
 //** Global variables **//
 #define UpdateDelay 5000
 
@@ -60,9 +63,16 @@ WiFiClient client;
 
 
 //*** DHT SENSOR VARIABLES ***//
-#define DHTPIN 9
+#define DHTPIN 8
 #define DHTTYPE DHT22
 DHT dht(DHTPIN, DHTTYPE);
+
+
+//*** DS18B20 SENSOR VARIABLES ***//
+#define ONE_WIRE_BUS 9
+OneWire oneWire(ONE_WIRE_BUS);
+DallasTemperature sensors(&oneWire);
+DeviceAddress insideThermometer;
 
 
 //*** NETWORK FUNCTION ***//
@@ -175,6 +185,17 @@ void setup() {
   Serial.println();
 
   dht.begin();
+  sensors.begin();
+  sensors.setResolution(9);
+
+  Serial.print("[DS18B20] Found ");
+  Serial.print(sensors.getDeviceCount(), DEC);
+  Serial.println(" devices.");
+
+  if (!sensors.getAddress(insideThermometer, 0)) Serial.println("Unable to find address for Device 0");
+ 
+  
+
 }
 
 void loop() {
@@ -217,6 +238,13 @@ void loop() {
 
   Serial.println(dhtString);
 
+  // DS20B18
+  sensors.requestTemperatures();
+  float DS18B20Data = sensors.getTempC(insideThermometer);
+  String DS18B20String = "[DS20B18] Temperature: " + String(DS18B20Data) + "*C";
+  Serial.println(DS18B20String);
+
+
   // Data transmition
   StaticJsonDocument<250> doc;
   JsonObject obj = doc.to<JsonObject>();
@@ -224,6 +252,7 @@ void loop() {
   obj["tmp"] = tmpString;
   obj["ldr"] = ldrString;
   obj["dht"] = dhtString;
+  obj["ds18b20"] = DS18B20String;
 
   sendData(obj);
 
