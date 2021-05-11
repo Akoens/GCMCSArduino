@@ -193,9 +193,6 @@ void setup() {
   Serial.println(" devices.");
 
   if (!sensors.getAddress(insideThermometer, 0)) Serial.println("Unable to find address for Device 0");
- 
-  
-
 }
 
 void loop() {
@@ -249,10 +246,11 @@ void loop() {
   StaticJsonDocument<300> doc;
   JsonObject obj = doc.to<JsonObject>();
 
-  obj["tmp"] = tmpString;
-  obj["ldr"] = ldrString;
-  obj["dht"] = dhtString;
-  obj["ds18b20"] = DS18B20String;
+  obj["temperature"] = dhtData.t;
+  obj["light"] = ldrData.ldrLux;
+  obj["humidity"] = dhtData.h;
+  obj["heat_index"] = dht.computeHeatIndex(dhtData.t, dhtData.h, false);
+  obj["ground_temperature"] = DS18B20Data;
 
   sendData(obj);
 
