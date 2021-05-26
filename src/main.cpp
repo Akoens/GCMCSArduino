@@ -27,6 +27,8 @@ char pass[] = SECRET_PASS;
 char server[] = SECRET_SERVER;
 int server_port = SECRET_PORT;
 char api_point[] = SECRET_API;
+int connectionRetries = 3;
+boolean connected = false;
 
 // WiFiSSLClient client;
 WiFiClient client;
@@ -73,6 +75,9 @@ DHT dht(DHTPIN, DHTTYPE);
 OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature sensors(&oneWire);
 DeviceAddress insideThermometer;
+
+//*** PUMP VARIABLES ***//
+#define PumpPin 12
 
 
 //*** NETWORK FUNCTION ***//
@@ -164,6 +169,7 @@ void setup() {
   pinMode(RED, OUTPUT);
   pinMode(YELLOW, OUTPUT);
   pinMode(GREEN, OUTPUT);
+  pinMode(PumpPin, OUTPUT);
 
   Serial.begin(9600);
   while (!Serial);
@@ -174,15 +180,26 @@ void setup() {
   }
 
   int status = WL_IDLE_STATUS;
+  int retry = 0;
   while (status != WL_CONNECTED) {
+    retry += 1; 
     Serial.print("Connecting to ");
     Serial.println(ssid);
     status = WiFi.begin(ssid, pass);
     delay(10000);
+    if (retry >= connectionRetries)
+    {
+      connected = false;
+      return;
+    }
+    
   }
-
-  printWiFiStatus();
-  Serial.println();
+  if (status == WL_CONNECTED)
+  {
+    connected = true;
+    printWiFiStatus();
+    Serial.println();
+  }
 
   dht.begin();
   sensors.begin();
@@ -252,8 +269,10 @@ void loop() {
   obj["heat_index"] = dht.computeHeatIndex(dhtData.t, dhtData.h, false);
   obj["ground_temperature"] = DS18B20Data;
 
-  sendData(obj);
+  if(connected) sendData(obj);
 
   Serial.println();
+  digitalWrite(PumpPin, HIGH);
   delay(UpdateDelay); 
+  digitalWrite(PumpPin, LOW);
 }
