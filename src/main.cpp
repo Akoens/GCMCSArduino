@@ -1,22 +1,12 @@
 #include <Arduino.h>
-#include <sensorDataStructs.h>
-#include <wifiManager.h>
-#include <utils.h>
 #include <secrets.h>
 
-#include <Wire.h>
-#include <SPI.h>
-#include <math.h>
+#include <sensors.h>
+#include <wifiManager.h>
+
 #include <ArduinoJson.h>
 
 #include <WifiNINA.h>
-#include <Adafruit_Sensor.h>
-
-#include <DHT.h>
-#include <DHT_U.h>
-
-#include <OneWire.h>
-#include <DallasTemperature.h>
 
 //** Global variables **//
 #define UpdateDelay 5000
@@ -29,19 +19,11 @@ char server[] = SECRET_SERVER;
 int server_port = SECRET_PORT;
 char api_point[] = SECRET_API;
 int connectionRetries = 3;
-boolean connected = false;
+boolean hasWifi = false;
 
 // WiFiSSLClient client;
 WiFiClient client;
 
-
-//*** LDR SENSOR VARIABLES ***//
-#define LightSensorPin A0
-#define MAX_ADC_READING 1023
-#define ADC_REF_VOLTAGE 5
-#define REF_RESISTANCE 4700
-#define LUX_CALC_SCALAR 12518931 
-#define LUX_CALC_EXPONENT -1.405
 
 //*** LED Lights ***//
 // #define RED 2
@@ -59,30 +41,6 @@ WiFiClient client;
 
 // #define GREEN_MIN_VALUE 500
 // #define GREEN_MAX_VALUE 2147483646
-
-
-//*** TMP SERNSOR VARIABLES ***//
-// #define TMPSensorPin A1
-// #define TMPSensorVin 5
-
-
-//*** MOISTURE SENSOR VARIABLES ***//
-#define SoilMoisturePin A1
-const int AirValue = 624;   //At 52.7 Humidiy
-const int WaterValue = 261;  //you need to replace this value with Value_2
-
-
-//*** DHT SENSOR VARIABLES ***//
-#define DHTPIN 4
-#define DHTTYPE DHT22
-DHT dht(DHTPIN, DHTTYPE);
-
-
-//*** DS18B20 SENSOR VARIABLES ***//
-#define ONE_WIRE_BUS 5
-OneWire oneWire(ONE_WIRE_BUS);
-DallasTemperature sensors(&oneWire);
-DeviceAddress insideThermometer;
 
 //*** PUMP VARIABLES ***//
 #define PumpPin 12
@@ -128,42 +86,6 @@ void sendData(JsonObject jsonData) {
   }
 }
 
-//*** LDR SENSOR CODE ***//
-ldrDataStruct readLDR() {
-  int ldrValue = analogRead(LightSensorPin);
-
-  float resistorVoltage = (float)ldrValue / MAX_ADC_READING * ADC_REF_VOLTAGE;
-  float ldrVoltage = ADC_REF_VOLTAGE - resistorVoltage;
-
-  float ldrResistance = ldrVoltage / resistorVoltage * REF_RESISTANCE;
-  float ldrLux = LUX_CALC_SCALAR * pow(ldrResistance, LUX_CALC_EXPONENT);
-
-  return ldrDataStruct{ldrLux, ldrValue};
-}
-
-//*** TMP SERNSOR CODE ***//
-// tmpDataStruct readTMP() {
-//   int tmpValue = analogRead(TMPSensorPin);
-//   float tmpVoltage = tmpValue * TMPSensorVin / 1024.0;
-//   float tmpTemperature = (tmpVoltage - 0.5) * 100;
-  
-//   return tmpDataStruct{tmpTemperature, tmpValue};
-// }
-
-//*** DHT SENSOR CODE ***//
-dhtDataStruct readDHT() {
-  float h = dht.readHumidity();
-  float t = dht.readTemperature();
-
-  // Check if any reads failed.
-  if (isnan(h) || isnan(t)) {
-    return dhtDataStruct{0,0};
-  } 
-  else {
-    return dhtDataStruct{h, t};
-  }
-}
-
 //*** MAIN FUNCTIONS ***//
 void setup() {
   // pinMode(RED, OUTPUT);
@@ -174,33 +96,13 @@ void setup() {
   Serial.begin(9600);
   while (!Serial);
 
-  boolean hasWifi = connectToWifi(ssid, pass, connectionRetries);
+  hasWifi = connectToWifi(ssid, pass, connectionRetries);
   // If has no wifi make AP.
 
-  dht.begin();
-  sensors.begin();
-  sensors.setResolution(9);
-
-  Serial.print("[DS18B20] Found ");
-  Serial.print(sensors.getDeviceCount(), DEC);
-  Serial.println(" devices.");
-
-  if (!sensors.getAddress(insideThermometer, 0)) Serial.println("Unable to find address for Device 0");
+  startSensors();
 }
 
 void loop() {
-  // LDR
-  ldrDataStruct ldrData = readLDR();
-  String ldrString = "[LDR] Light: " + String((int)ldrData.ldrLux) + 
-  " Lux | raw: " + String(ldrData.ldrValue);
-  Serial.println(ldrString);
-
-  //Moisture Sensor
-  int soilMoistureValue = analogRead(SoilMoisturePin);  //put Sensor insert into soil
-  int soilMoisturePrecent = map(soilMoistureValue, AirValue, WaterValue, 0, 100);
-  Serial.print("Soil Moisture:");
-  Serial.print(soilMoisturePrecent);
-
   // digitalWrite(RED, LOW);
   // digitalWrite(YELLOW, LOW);
   // digitalWrite(GREEN, LOW);
@@ -215,45 +117,9 @@ void loop() {
   //   digitalWrite(GREEN, HIGH);
   // }
 
-  // TMP
-  // tmpDataStruct tmpData = readTMP();
-  // String tmpString = "[TMP] Temperature: " + String(tmpData.tmpTemperature) + 
-  //   "*C / " + String(calcKelvin(tmpData.tmpTemperature)) +
-  //   "*K / " + String(calcFahrenheid(tmpData.tmpTemperature)) +
-  //   "*F | Raw: " + String(tmpData.tmpValue);
-  // Serial.println(tmpString);
-  
-  // DHT
-  dhtDataStruct dhtData = readDHT();
-  String dhtString = "[DHT] Humidity: " + String(dhtData.h) + 
-  "% | Temperature: " + String(dhtData.t) +
-  "*C / " + String(calcFahrenheid(dhtData.t)) +
-  "*K / " + String(calcKelvin(dhtData.t)) + 
-  "*F | Heat index: " + String(dht.computeHeatIndex(dhtData.t, dhtData.h, false)) +
-  "*C / " + String(dht.computeHeatIndex(calcFahrenheid(dhtData.t), dhtData.h)) + "*F";
+  JsonObject sensorData = readSensors();
+  if(hasWifi) sendData(sensorData);
 
-  Serial.println(dhtString);
-
-  // DS20B18
-  sensors.requestTemperatures();
-  float DS18B20Data = sensors.getTempC(insideThermometer);
-  String DS18B20String = "[DS20B18] Temperature: " + String(DS18B20Data) + "*C";
-  Serial.println(DS18B20String);
-
-
-  // Data transmition
-  StaticJsonDocument<300> doc;
-  JsonObject obj = doc.to<JsonObject>();
-
-  obj["temperature"] = dhtData.t;
-  obj["light"] = ldrData.ldrLux;
-  obj["humidity"] = dhtData.h;
-  obj["heat_index"] = dht.computeHeatIndex(dhtData.t, dhtData.h, false);
-  obj["ground_temperature"] = DS18B20Data;
-
-  if(connected) sendData(obj);
-
-  Serial.println();
   digitalWrite(PumpPin, HIGH);
   delay(UpdateDelay); 
   digitalWrite(PumpPin, LOW);
