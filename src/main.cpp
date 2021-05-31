@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <sensorDataStructs.h>
+#include <wifiManager.h>
 #include <utils.h>
 #include <secrets.h>
 
@@ -42,36 +43,43 @@ WiFiClient client;
 #define LUX_CALC_SCALAR 12518931 
 #define LUX_CALC_EXPONENT -1.405
 
-#define RED 2
-#define YELLOW 3
-#define GREEN 4
+//*** LED Lights ***//
+// #define RED 2
+// #define YELLOW 3
+// #define GREEN 4
 
 
 // Light sensor LEDs
 // Lowest value || -2147483647-1 || Highest value || 2147483647
-#define RED_MIN_VALUE -2147483647-1
-#define RED_MAX_VALUE 100
+// #define RED_MIN_VALUE -2147483647-1
+// #define RED_MAX_VALUE 100
 
-#define YELLOW_MIN_VALUE 100
-#define YELLOW_MAX_VALUE 500
+// #define YELLOW_MIN_VALUE 100
+// #define YELLOW_MAX_VALUE 500
 
-#define GREEN_MIN_VALUE 500
-#define GREEN_MAX_VALUE 2147483646
+// #define GREEN_MIN_VALUE 500
+// #define GREEN_MAX_VALUE 2147483646
 
 
 //*** TMP SERNSOR VARIABLES ***//
-#define TMPSensorPin A1
-#define TMPSensorVin 5
+// #define TMPSensorPin A1
+// #define TMPSensorVin 5
+
+
+//*** MOISTURE SENSOR VARIABLES ***//
+#define SoilMoisturePin A1
+const int AirValue = 624;   //At 52.7 Humidiy
+const int WaterValue = 261;  //you need to replace this value with Value_2
 
 
 //*** DHT SENSOR VARIABLES ***//
-#define DHTPIN 8
+#define DHTPIN 4
 #define DHTTYPE DHT22
 DHT dht(DHTPIN, DHTTYPE);
 
 
 //*** DS18B20 SENSOR VARIABLES ***//
-#define ONE_WIRE_BUS 9
+#define ONE_WIRE_BUS 5
 OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature sensors(&oneWire);
 DeviceAddress insideThermometer;
@@ -80,9 +88,7 @@ DeviceAddress insideThermometer;
 #define PumpPin 12
 
 
-//*** NETWORK FUNCTION ***//
-
-
+//*** NETWORK DATA FUNCTION ***//
 void sendData(JsonObject jsonData) {
   // Connect to server
   Serial.println("\nStarting connection to server...");
@@ -136,13 +142,13 @@ ldrDataStruct readLDR() {
 }
 
 //*** TMP SERNSOR CODE ***//
-tmpDataStruct readTMP() {
-  int tmpValue = analogRead(TMPSensorPin);
-  float tmpVoltage = tmpValue * TMPSensorVin / 1024.0;
-  float tmpTemperature = (tmpVoltage - 0.5) * 100;
+// tmpDataStruct readTMP() {
+//   int tmpValue = analogRead(TMPSensorPin);
+//   float tmpVoltage = tmpValue * TMPSensorVin / 1024.0;
+//   float tmpTemperature = (tmpVoltage - 0.5) * 100;
   
-  return tmpDataStruct{tmpTemperature, tmpValue};
-}
+//   return tmpDataStruct{tmpTemperature, tmpValue};
+// }
 
 //*** DHT SENSOR CODE ***//
 dhtDataStruct readDHT() {
@@ -160,21 +166,16 @@ dhtDataStruct readDHT() {
 
 //*** MAIN FUNCTIONS ***//
 void setup() {
-  pinMode(RED, OUTPUT);
-  pinMode(YELLOW, OUTPUT);
-  pinMode(GREEN, OUTPUT);
-  pinMode(PumpPin, OUTPUT);
+  // pinMode(RED, OUTPUT);
+  // pinMode(YELLOW, OUTPUT);
+  // pinMode(GREEN, OUTPUT);
+  // pinMode(PumpPin, OUTPUT);
 
   Serial.begin(9600);
   while (!Serial);
-  while (WiFi.status() == WL_NO_MODULE);
 
-  if (WiFi.firmwareVersion() < WIFI_FIRMWARE_LATEST_VERSION) {
-    Serial.println("Firmware upgrade available!");
-  }
-
-  connectedToWifi();
-  
+  boolean hasWifi = connectToWifi(ssid, pass, connectionRetries);
+  // If has no wifi make AP.
 
   dht.begin();
   sensors.begin();
@@ -194,27 +195,33 @@ void loop() {
   " Lux | raw: " + String(ldrData.ldrValue);
   Serial.println(ldrString);
 
-  digitalWrite(RED, LOW);
-  digitalWrite(YELLOW, LOW);
-  digitalWrite(GREEN, LOW);
+  //Moisture Sensor
+  int soilMoistureValue = analogRead(SoilMoisturePin);  //put Sensor insert into soil
+  int soilMoisturePrecent = map(soilMoistureValue, AirValue, WaterValue, 0, 100);
+  Serial.print("Soil Moisture:");
+  Serial.print(soilMoisturePrecent);
 
-  if(RED_MIN_VALUE < ldrData.ldrLux && ldrData.ldrLux < RED_MAX_VALUE){
-    digitalWrite(RED, HIGH);
-  }
-  if(YELLOW_MIN_VALUE < ldrData.ldrLux && ldrData.ldrLux < YELLOW_MAX_VALUE){
-    digitalWrite(YELLOW, HIGH);
-  }
-  if(GREEN_MIN_VALUE < ldrData.ldrLux && ldrData.ldrLux < GREEN_MAX_VALUE){
-    digitalWrite(GREEN, HIGH);
-  }
+  // digitalWrite(RED, LOW);
+  // digitalWrite(YELLOW, LOW);
+  // digitalWrite(GREEN, LOW);
+
+  // if(RED_MIN_VALUE < ldrData.ldrLux && ldrData.ldrLux < RED_MAX_VALUE){
+  //   digitalWrite(RED, HIGH);
+  // }
+  // if(YELLOW_MIN_VALUE < ldrData.ldrLux && ldrData.ldrLux < YELLOW_MAX_VALUE){
+  //   digitalWrite(YELLOW, HIGH);
+  // }
+  // if(GREEN_MIN_VALUE < ldrData.ldrLux && ldrData.ldrLux < GREEN_MAX_VALUE){
+  //   digitalWrite(GREEN, HIGH);
+  // }
 
   // TMP
-  tmpDataStruct tmpData = readTMP();
-  String tmpString = "[TMP] Temperature: " + String(tmpData.tmpTemperature) + 
-    "*C / " + String(calcKelvin(tmpData.tmpTemperature)) +
-    "*K / " + String(calcFahrenheid(tmpData.tmpTemperature)) +
-    "*F | Raw: " + String(tmpData.tmpValue);
-  Serial.println(tmpString);
+  // tmpDataStruct tmpData = readTMP();
+  // String tmpString = "[TMP] Temperature: " + String(tmpData.tmpTemperature) + 
+  //   "*C / " + String(calcKelvin(tmpData.tmpTemperature)) +
+  //   "*K / " + String(calcFahrenheid(tmpData.tmpTemperature)) +
+  //   "*F | Raw: " + String(tmpData.tmpValue);
+  // Serial.println(tmpString);
   
   // DHT
   dhtDataStruct dhtData = readDHT();

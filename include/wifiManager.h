@@ -1,9 +1,21 @@
 #include <WiFiNINA.h>
 #include <Arduino.h>
 
-boolean connectToWifi(String ssid, String pass, int retries) {
-    int status = WL_IDLE_STATUS;
-    int retry = 0;
+void printWiFiStatus() {
+  IPAddress ip = WiFi.localIP();
+
+  Serial.print("IP Address: ");
+  Serial.println(ip);
+}
+
+boolean connectToWifi(char ssid[], char pass[], int retries) {
+  while (WiFi.status() == WL_NO_MODULE);
+
+  if (WiFi.firmwareVersion() < WIFI_FIRMWARE_LATEST_VERSION) {
+    Serial.println("Firmware upgrade available!");
+  }
+  int status = WL_IDLE_STATUS;
+  int retry = 0;
   while (status != WL_CONNECTED) {
     retry += 1; 
     Serial.print("Connecting to ");
@@ -23,9 +35,4 @@ boolean connectToWifi(String ssid, String pass, int retries) {
   }
 }
 
-void printWiFiStatus() {
-  IPAddress ip = WiFi.localIP();
 
-  Serial.print("IP Address: ");
-  Serial.println(ip);
-}
