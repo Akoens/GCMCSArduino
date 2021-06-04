@@ -9,7 +9,9 @@
 
 //*** SENSOR PINS ***//
 #define LDRPIN A0
-#define DHTPIN 4
+#define DHTPIN 2
+#define ONE_WIRE_BUS 3
+#define SoilMoisturePin A1
 
 //*** TMP SERNSOR VARIABLES ***//
 // #define TMPSensorPin A1
@@ -27,13 +29,11 @@
 DHT dht(DHTPIN, DHTTYPE);
 
 //*** DS18B20 SENSOR VARIABLES ***//
-#define ONE_WIRE_BUS 5
 OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature sensors(&oneWire);
 DeviceAddress insideThermometer;
 
 //*** MOISTURE SENSOR VARIABLES ***//
-#define SoilMoisturePin A1
 const int AirValue = 624;   //At 52.7 Humidiy
 const int WaterValue = 261;  
 
@@ -130,7 +130,7 @@ void startSensors(){
   if (!sensors.getAddress(insideThermometer, 0)) Serial.println("Unable to find address for Device 0");
 }
 
-JsonObject readSensors(){
+String readSensors(){
   // LDR
   float lux = getLDR();
   printLDR(lux);
@@ -152,7 +152,7 @@ JsonObject readSensors(){
   // printTMP(temperature);
 
   // Data transmition
-  StaticJsonDocument<300> doc;
+  StaticJsonDocument<400> doc;
   JsonObject obj = doc.to<JsonObject>();
 
   obj["temperature"] = dhtData.t;
@@ -162,7 +162,10 @@ JsonObject readSensors(){
   obj["moisture"] = soilMoisture;
   obj["ground_temperature"] = groundTemperature;
 
-  return obj;
+  String temp;
+  serializeJson(obj, temp);
+
+  return temp;
 }
 
 
