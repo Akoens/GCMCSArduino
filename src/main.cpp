@@ -22,8 +22,9 @@ char ap_pass[] = "88888888"; // Minimum of 8 charactes
 char server[] = SECRET_SERVER;
 int server_port = SECRET_PORT;
 char api_point[] = SECRET_API;
-int connectionRetries = 3;
+int connectionRetries = 1;
 boolean hasWifi = false;
+int count = 0;
 
 //*** LED Lights ***//
 // #define RED 2
@@ -43,15 +44,14 @@ boolean hasWifi = false;
 // #define GREEN_MAX_VALUE 2147483646
 
 //*** PUMP VARIABLES ***//
-#define PumpPin 12
-
+#define PumpPin 4
 
 //*** MAIN FUNCTIONS ***//
 void setup() {
   // pinMode(RED, OUTPUT);
   // pinMode(YELLOW, OUTPUT);
   // pinMode(GREEN, OUTPUT);
-  // pinMode(PumpPin, OUTPUT);
+  pinMode(PumpPin, OUTPUT);
 
   Serial.begin(9600);
   while (!Serial);
@@ -62,6 +62,12 @@ void setup() {
   if(!hasWifi) createWifiAccessPoint(ap_ssid, ap_pass);
 
   startSensors();
+}
+
+void pump(int pump_delay) {
+  digitalWrite(PumpPin, HIGH);
+  delay(pump_delay); 
+  digitalWrite(PumpPin, LOW);
 }
 
 void loop() {
@@ -83,8 +89,12 @@ void loop() {
 
   // String sensorData = readSensors();
   // if(hasWifi) sendData(sensorData, server, server_port, api_point);
-
-  // digitalWrite(PumpPin, HIGH);
-  // delay(UpdateDelay); 
-  // digitalWrite(PumpPin, LOW);
+  Serial.println(count);
+  if (count > 10000) {
+    count = 0;
+    pump(5000);
+  }
+  count++;
+  
+  delay(5);
 }
