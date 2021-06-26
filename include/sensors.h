@@ -159,8 +159,8 @@ String readSensors(){
   obj["light"] = lux;
   obj["humidity"] = dhtData.h;
   obj["heat_index"] = dht.computeHeatIndex(dhtData.t, dhtData.h, false);
-  obj["moisture"] = soilMoisture;
   obj["ground_temperature"] = groundTemperature;
+  obj["ground_moisture"] = soilMoisture;
 
   String temp;
   serializeJson(obj, temp);

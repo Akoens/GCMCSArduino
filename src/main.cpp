@@ -9,8 +9,14 @@
 #include <WifiNINA.h>
 
 //** Global variables **//
-#define UpdateDelay 5000
-
+#define updateDelay 5
+#define sensorUpdateTime 30 * 1000 / updateDelay
+#define pumpFreqency 24 * 60 * 60 * 1000 / updateDelay
+#define pumpTime 40 * 1000
+#define ButtonPin 5
+int count = 0;
+int pump_count = 0;
+String sensorData;
 
 //*** WiFi / Network Variables ***//
 char ssid[] = SECRET_SSID;
@@ -22,9 +28,8 @@ char ap_pass[] = "88888888"; // Minimum of 8 charactes
 char server[] = SECRET_SERVER;
 int server_port = SECRET_PORT;
 char api_point[] = SECRET_API;
-int connectionRetries = 1;
+int connectionRetries = 3;
 boolean hasWifi = false;
-int count = 0;
 
 //*** LED Lights ***//
 // #define RED 2
@@ -52,6 +57,7 @@ void setup() {
   // pinMode(YELLOW, OUTPUT);
   // pinMode(GREEN, OUTPUT);
   pinMode(PumpPin, OUTPUT);
+  pinMode(ButtonPin, INPUT);
 
   Serial.begin(9600);
   while (!Serial);
@@ -85,16 +91,30 @@ void loop() {
   //   digitalWrite(GREEN, HIGH);
   // }
 
-  listenForClients();
+  if(!hasWifi) listenForClients(sensorData);
 
-  // String sensorData = readSensors();
-  // if(hasWifi) sendData(sensorData, server, server_port, api_point);
-  Serial.println(count);
-  if (count > 10000) {
+  if (count > sensorUpdateTime) {
     count = 0;
-    pump(5000);
-  }
+    // pump(5000);
+    sensorData = readSensors();
+    if(hasWifi) sendData(sensorData, server, server_port, api_point);
+  } else 
   count++;
+
+  if (pump_count >= pumpFreqency) {
+    pump(pumpTime);
+    pump_count = 0;
+  }
+
+  static uint8_t lastButtonState = LOW;
+  uint8_t state = digitalRead(ButtonPin);
+  if (state != lastButtonState) {
+    lastButtonState = state;
+    if (state == HIGH) {
+      pump(5 * 1000);
+      Serial.println("Button pressed!");
+    }
+  }
   
-  delay(5);
+  delay(updateDelay);
 }

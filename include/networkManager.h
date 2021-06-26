@@ -63,7 +63,7 @@ boolean createWifiAccessPoint(char ap_ssid[], char ap_pass[]) {
 
 }
 
-void listenForClients(){
+void listenForClients(String sensorData){
   // compare the previous status to the current status
   if (status != WiFi.status()) {
     // it has changed update the variable
@@ -100,8 +100,7 @@ void listenForClients(){
             client.println();
 
             // the content of the HTTP response follows the header:
-            client.print("Click <a href=\"/H\">here</a> turn the LED on<br>");
-            client.print("Click <a href=\"/L\">here</a> turn the LED off<br>");
+           client.println(sensorData);
 
             // The HTTP response ends with another blank line:
             client.println();
